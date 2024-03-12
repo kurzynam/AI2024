@@ -3,14 +3,14 @@ import java.util.Scanner;
 public class Main {
     static int stepNum = 0;
 
-    public static void move(int m, String source, String goal, String helper) {
-        if (m > 1) {
-            move(m - 1, source, helper, goal);
+    public static void move(int n, String source, String goal, String helper) {
+        if (n > 1) {
+            move(n - 1, source, helper, goal);
         }
         stepNum++;
         System.out.println(stepNum + ": " + source + " --> " + goal);
-        if (m > 1) {
-            move(m - 1, helper, goal, source);
+        if (n > 1) {
+            move(n - 1, helper, goal, source);
         }
     }
 
