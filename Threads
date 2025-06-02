@@ -1,0 +1,142 @@
+package threads;
+
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.awt.Color;
+import java.io.File;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.concurrent.*;
+
+public class ImageProcessor {
+
+    private BufferedImage image;
+
+    // Zadanie 1 - Wczytywanie i zapisywanie obrazu
+    public void loadImage(String path) throws IOException {
+        image = ImageIO.read(new File(path));
+    }
+
+    public void saveImage(String path) throws IOException {
+        ImageIO.write(image, "png", new File(path));
+    }
+
+    // Zadanie 2 - Zwiększanie jasności (pojedynczy wątek)
+    public void increaseBrightness(int value) {
+        int width = image.getWidth();
+        int height = image.getHeight();
+
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                Color c = new Color(image.getRGB(x, y));
+                int r = Math.min(255, c.getRed() + value);
+                int g = Math.min(255, c.getGreen() + value);
+                int b = Math.min(255, c.getBlue() + value);
+                image.setRGB(x, y, new Color(r, g, b).getRGB());
+            }
+        }
+    }
+
+    // Zadanie 3 - Zwiększanie jasności z użyciem wielu wątków
+    public void increaseBrightnessMultithreaded(int value) throws InterruptedException {
+        int cores = Runtime.getRuntime().availableProcessors();
+        Thread[] threads = new Thread[cores];
+        int height = image.getHeight();
+        int slice = height / cores;
+
+        for (int i = 0; i < cores; i++) {
+            int startY = i * slice;
+            int endY = (i == cores - 1) ? height : (i + 1) * slice;
+
+            threads[i] = new Thread(() -> {
+                for (int y = startY; y < endY; y++) {
+                    for (int x = 0; x < image.getWidth(); x++) {
+                        Color c = new Color(image.getRGB(x, y));
+                        int r = Math.min(255, c.getRed() + value);
+                        int g = Math.min(255, c.getGreen() + value);
+                        int b = Math.min(255, c.getBlue() + value);
+                        image.setRGB(x, y, new Color(r, g, b).getRGB());
+                    }
+                }
+            });
+            threads[i].start();
+        }
+
+        for (Thread t : threads) t.join();
+    }
+
+    // Zadanie 4 - Zwiększanie jasności z wykorzystaniem puli wątków (1 wiersz = 1 wątek)
+    public void increaseBrightnessThreadPool(int value) throws InterruptedException {
+        ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+        int height = image.getHeight();
+
+        for (int y = 0; y < height; y++) {
+            final int row = y;
+            executor.submit(() -> {
+                for (int x = 0; x < image.getWidth(); x++) {
+                    Color c = new Color(image.getRGB(x, row));
+                    int r = Math.min(255, c.getRed() + value);
+                    int g = Math.min(255, c.getGreen() + value);
+                    int b = Math.min(255, c.getBlue() + value);
+                    image.setRGB(x, row, new Color(r, g, b).getRGB());
+                }
+            });
+        }
+
+        executor.shutdown();
+        executor.awaitTermination(1, TimeUnit.MINUTES);
+    }
+
+    // Zadanie 5 - Obliczanie histogramu kanału
+    public int[] computeHistogramThreadPool(String channel) throws InterruptedException {
+        int height = image.getHeight();
+        int[] histogram = new int[256];
+        ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+        int[][] localHistograms = new int[height][256];
+
+        for (int y = 0; y < height; y++) {
+            final int row = y;
+            executor.submit(() -> {
+                for (int x = 0; x < image.getWidth(); x++) {
+                    Color c = new Color(image.getRGB(x, row));
+                    int value = switch (channel.toLowerCase()) {
+                        case "red" -> c.getRed();
+                        case "green" -> c.getGreen();
+                        case "blue" -> c.getBlue();
+                        default -> throw new IllegalArgumentException("Invalid channel");
+                    };
+                    localHistograms[row][value]++;
+                }
+            });
+        }
+
+        executor.shutdown();
+        executor.awaitTermination(1, TimeUnit.MINUTES);
+
+        for (int[] local : localHistograms) {
+            for (int i = 0; i < 256; i++) {
+                histogram[i] += local[i];
+            }
+        }
+
+        return histogram;
+    }
+
+    // Zadanie 6 - Rysowanie histogramu jako obraz
+    public BufferedImage drawHistogram(int[] histogram) {
+        int width = 256;
+        int height = 200;
+        BufferedImage histImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+
+        int max = Arrays.stream(histogram).max().orElse(1);
+
+        for (int x = 0; x < width; x++) {
+            int value = histogram[x] * height / max;
+            for (int y = height - 1; y >= height - value; y--) {
+                histImage.setRGB(x, y, Color.WHITE.getRGB());
+            }
+        }
+
+        return histImage;
+    }
+}
